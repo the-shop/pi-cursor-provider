@@ -171,6 +171,12 @@ export function familySupportsReasoning(family: Family): boolean {
   return family.thinking || [...family.variants.keys()].some((effort) => !["default", "none"].includes(effort));
 }
 
+const TRANSCRIPT_MARKER_LINE_RE = /^([ \t]*)(\[\/?(?:System|User|Assistant|Tool result|Tool call)(?::[^\]\r\n]*)?\])([ \t]*)(?=\r?$)/gm;
+
+function escapeTranscriptBody(content: string): string {
+  return content.replace(TRANSCRIPT_MARKER_LINE_RE, "$1\\$2$3");
+}
+
 function blockToText(block: TextContent | ImageContent): string {
   if (block.type === "text") return block.text;
   const bytes = Math.round((block.data.length * 3) / 4);
@@ -181,7 +187,7 @@ function assistantContent(message: Extract<Message, { role: "assistant" }>): str
   const parts: string[] = [];
   for (const block of message.content) {
     if (block.type === "text") {
-      parts.push(block.text);
+      parts.push(escapeTranscriptBody(block.text));
     } else if (block.type === "toolCall") {
       parts.push(`[Tool call: ${block.name}, id: ${block.id}]\n${JSON.stringify(block.arguments)}`);
     }
@@ -192,7 +198,7 @@ function assistantContent(message: Extract<Message, { role: "assistant" }>): str
 /** Serialize a normalized Pi transcript after the host resolves its current system prompt. */
 export function serializeTranscript(messages: readonly Message[], systemPrompt: string): string {
   const blocks: string[] = [];
-  if (systemPrompt) blocks.push(`[System]\n${systemPrompt}\n[/System]`);
+  if (systemPrompt) blocks.push(`[System]\n${escapeTranscriptBody(systemPrompt)}\n[/System]`);
 
   for (const message of messages) {
     if (message.role === "system") continue;
@@ -200,12 +206,12 @@ export function serializeTranscript(messages: readonly Message[], systemPrompt: 
       const content = typeof message.content === "string"
         ? message.content
         : message.content.map(blockToText).join("\n");
-      blocks.push(`[User]\n${content}\n[/User]`);
+      blocks.push(`[User]\n${escapeTranscriptBody(content)}\n[/User]`);
     } else if (message.role === "assistant") {
       blocks.push(`[Assistant]\n${assistantContent(message)}\n[/Assistant]`);
     } else {
       const status = message.isError ? "error" : "ok";
-      const content = message.content.map(blockToText).join("\n");
+      const content = escapeTranscriptBody(message.content.map(blockToText).join("\n"));
       blocks.push(
         `[Tool result: ${message.toolName}, id: ${message.toolCallId}, status: ${status}]\n${content}\n[/Tool result]`,
       );

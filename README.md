@@ -69,7 +69,7 @@ Cursor executes its own internal tools. Their stream events are observable throu
 4. The CLI runs with `--print --force --output-format stream-json --stream-partial-output --model <exact-id>` by default. `CURSOR_PI_NO_FORCE=1` omits `--force`.
 5. Ordered stream-json events become balanced Pi text/thinking events. A Cursor `result` event supplies token usage.
 
-The transcript serializer preserves user text, assistant text, prior Pi tool calls, tool results, errors, empty messages, and image metadata placeholders. Previous assistant thinking is not replayed. The provider declares text-only input and never sends image bytes to the CLI.
+The transcript serializer preserves user text, assistant text, prior Pi tool calls, tool results, errors, empty messages, and image metadata placeholders. To keep its readable boundaries unambiguous, marker-like lines in message bodies (such as `[System]` or `[/User]`) are prefixed with a backslash. Previous assistant thinking is not replayed. The provider declares text-only input and never sends image bytes to the CLI.
 
 ### Request instrumentation
 
