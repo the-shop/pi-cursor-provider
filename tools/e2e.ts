@@ -137,7 +137,7 @@ try {
   delete process.env.CURSOR_PI_NO_FORCE;
 
   const providers = new Map<string, ProviderConfig>();
-  factory({ registerProvider: (name: string, config: ProviderConfig) => providers.set(name, config) } as never);
+  await factory({ registerProvider: (name: string, config: ProviderConfig) => providers.set(name, config) } as never);
   const config = providers.get("cursor")!;
   const models = await config.refreshModels({
     allowNetwork: true,

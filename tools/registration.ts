@@ -34,32 +34,36 @@ const mockApi = {
   registerCommand: (name: string) => commands.push(name),
 };
 
+const root = mkdtempSync(join(tmpdir(), "pi cursor provider registration "));
+const stubPath = join(root, "cursor agent stub.mjs");
+const discoveryCapture = join(root, "discovery.json");
+const signalCapture = join(root, "signal.txt");
+copyFileSync(new URL("./cursor-agent-stub.mjs", import.meta.url), stubPath);
+chmodSync(stubPath, 0o755);
+process.env.CURSOR_AGENT_PATH = stubPath;
+process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE = discoveryCapture;
+delete process.env.CURSOR_API_KEY;
+
 const factoryResult = factory(mockApi as never);
+await factoryResult;
 const config = providers.get("cursor")!;
 
 console.log("=== registration ===");
-check("factory is synchronous", factoryResult === undefined);
+check("factory is async and awaited", factoryResult instanceof Promise);
 check("provider cursor registered", Boolean(config));
 eq("custom API id", config?.api, "cursor-cli");
 eq("CLI base URL", config?.baseUrl, "cli://cursor-agent");
 check("legacy auth sentinel is non-secret", config?.apiKey === "cursor-agent-login");
 check("streamSimple registered", typeof config?.streamSimple === "function");
 check("refreshModels registered", typeof config?.refreshModels === "function");
-eq("initial catalog is live-only", config?.models, []);
+check(
+  "cold factory discovery populates the initial catalog",
+  (config?.models.length ?? 0) >= 5,
+  `${config?.models.length ?? 0}`,
+);
 eq("no slash commands registered", commands, []);
 
-const root = mkdtempSync(join(tmpdir(), "pi cursor provider registration "));
 try {
-  const stubPath = join(root, "cursor agent stub.mjs");
-  const discoveryCapture = join(root, "discovery.json");
-  const signalCapture = join(root, "signal.txt");
-  copyFileSync(new URL("./cursor-agent-stub.mjs", import.meta.url), stubPath);
-  chmodSync(stubPath, 0o755);
-
-  process.env.CURSOR_AGENT_PATH = stubPath;
-  process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE = discoveryCapture;
-  delete process.env.CURSOR_API_KEY;
-
   const controller = new AbortController();
   const refreshContext = {
     allowNetwork: false,

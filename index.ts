@@ -563,9 +563,24 @@ function streamCursorCli(
   return stream;
 }
 
-export default function cursorProvider(pi: ExtensionAPI): void {
+export default async function cursorProvider(pi: ExtensionAPI): Promise<void> {
   let families = new Map<string, Family>();
   let models: CursorModelDefinition[] = [];
+
+  // Cold-start discovery. The host awaits an async factory before startup model
+  // resolution, so registering a populated catalog here keeps model selection
+  // (including `pi -p --model cursor/<family>`) deterministic on a first run.
+  // Failure is not fatal: refreshModels retries discovery later.
+  const bootstrapEnv: StringEnv = { ...process.env };
+  try {
+    const bootstrap = buildFamilies(
+      await discoverModels(bootstrapEnv.CURSOR_AGENT_PATH || DEFAULT_AGENT_PATH, bootstrapEnv, new AbortController().signal),
+    );
+    families = new Map(bootstrap.map((family) => [family.id, family]));
+    models = modelsFor(bootstrap);
+  } catch {
+    // Leave the catalog empty; refreshModels retries the discovery.
+  }
 
   pi.registerProvider(PROVIDER_ID, {
     name: "Cursor subscription via cursor-agent",
