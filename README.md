@@ -1,6 +1,6 @@
 # pi-cursor-provider
 
-Cursor subscription models for the [pi](https://github.com/the-shop/pi-the-shop) coding agent. The package registers provider id `cursor`, discovers the account's live model catalog, and routes each turn through the `cursor-agent` CLI.
+Cursor subscription models for the [pi](https://github.com/earendil-works/pi) coding agent. The package registers provider id `cursor`, discovers the account's live model catalog, and routes each turn through the `cursor-agent` CLI.
 
 ## Status: working
 
@@ -25,7 +25,7 @@ No `npm install` step is required.
 ## Requirements
 
 - Node.js 22.6 or newer
-- pi 1.0 or newer
+- [pi](https://github.com/earendil-works/pi) 1.0 or newer
 - A `cursor-agent` build supporting `--list-models`, `--print`, `--output-format stream-json`, `--stream-partial-output`, `--model`, and `--force`, available on `PATH` or selected with `CURSOR_AGENT_PATH`
 - An existing Cursor CLI login (`cursor-agent login`) or `CURSOR_API_KEY`
 
