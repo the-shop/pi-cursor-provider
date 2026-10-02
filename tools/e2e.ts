@@ -75,29 +75,48 @@ async function collect(
   model: Record<string, unknown>,
   options: Record<string, unknown>,
   timeoutMs = 4_000,
+  supplyTimeoutSignal = true,
 ): Promise<Array<Record<string, any>>> {
   const events: Array<Record<string, any>> = [];
   let timedOut = false;
   const timeoutController = new AbortController();
   const suppliedSignal = options.signal as AbortSignal | undefined;
-  const streamOptions = {
-    ...options,
-    signal: suppliedSignal ? AbortSignal.any([suppliedSignal, timeoutController.signal]) : timeoutController.signal,
-  };
+  const streamOptions = supplyTimeoutSignal
+    ? {
+        ...options,
+        signal: suppliedSignal ? AbortSignal.any([suppliedSignal, timeoutController.signal]) : timeoutController.signal,
+      }
+    : options;
+  let rejectHardTimeout: ((error: Error) => void) | undefined;
+  const hardTimeout = new Promise<never>((_resolve, reject) => { rejectHardTimeout = reject; });
   const timeout = setTimeout(() => {
     timedOut = true;
-    timeoutController.abort();
+    if (supplyTimeoutSignal) timeoutController.abort();
+    else rejectHardTimeout?.(new Error(`stream did not complete within ${timeoutMs}ms`));
   }, timeoutMs);
   timeout.unref();
-  try {
+  const consume = async () => {
     for await (const event of config.streamSimple(model, context(), streamOptions)) {
       events.push(structuredClone(event));
     }
+  };
+  try {
+    if (supplyTimeoutSignal) await consume();
+    else await Promise.race([consume(), hardTimeout]);
   } finally {
     clearTimeout(timeout);
   }
   check("stream completed before hard timeout", !timedOut);
   return events;
+}
+
+async function fileEventuallyContains(path: string, expected: string, timeoutMs = 1_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(path) && readFileSync(path, "utf8").includes(expected)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return existsSync(path) && readFileSync(path, "utf8").includes(expected);
 }
 
 function terminalEvents(events: Array<Record<string, any>>): Array<Record<string, any>> {
@@ -319,6 +338,36 @@ try {
   check("provider callback failure follows start", providerHookFailure.some((event) => event.type === "start"));
   check("provider callback error preserved", providerHookFailure.at(-1)?.error?.errorMessage === "provider observer failed");
 
+  console.log("=== stream deadline ===");
+  const deadlineSignalCapture = join(root, "deadline-signal.txt");
+  const deadlineStartedAt = Date.now();
+  const deadline = await collect(config, model, {
+    env: {
+      CURSOR_AGENT_PATH: stubPath,
+      CURSOR_PI_STREAM_TIMEOUT_MS: "300",
+      CURSOR_PI_STUB_CAPTURE: join(root, "deadline.json"),
+      CURSOR_PI_STUB_SCENARIO: "hang",
+      CURSOR_PI_STUB_SIGNAL_CAPTURE: deadlineSignalCapture,
+    },
+  }, 4_000, false);
+  const deadlineElapsedMs = Date.now() - deadlineStartedAt;
+  assertSingleTerminal("stream timeout", deadline, "error");
+  eq("stream timeout: stop reason", deadline.at(-1)?.error?.stopReason, "error");
+  eq(
+    "stream timeout: clear deadline message",
+    deadline.at(-1)?.error?.errorMessage,
+    "cursor-agent stream timed out after 300ms",
+  );
+  check(
+    "stream timeout completes without a supplied abort signal",
+    deadlineElapsedMs < 2_500,
+    `${deadlineElapsedMs}ms`,
+  );
+  check(
+    "stream timeout terminates the hanging child with SIGTERM",
+    await fileEventuallyContains(deadlineSignalCapture, "stream:SIGTERM"),
+  );
+
   console.log("=== abort ===");
   const preAborted = new AbortController();
   preAborted.abort();
@@ -357,7 +406,7 @@ try {
   delete process.env.CURSOR_PI_NO_FORCE;
   delete process.env.CURSOR_PI_ENV_PROBE;
   delete process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE;
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
 }
 
 console.log(`\n=== ${FAILURES.length === 0 ? `E2E PASSED (${checks} checks)` : `E2E FAILED (${FAILURES.length}/${checks})`} ===`);

@@ -40,6 +40,7 @@ const API_ID = "cursor-cli" as Api;
 const BASE_URL = "cli://cursor-agent";
 const DEFAULT_AGENT_PATH = "cursor-agent";
 const DISCOVERY_TIMEOUT_MS = 20_000;
+const DEFAULT_STREAM_TIMEOUT_MS = 10 * 60_000;
 const KILL_GRACE_MS = 1_000;
 const STDERR_LIMIT = 8_192;
 const DISCOVERY_STDOUT_LIMIT_BYTES = 1_048_576;
@@ -87,6 +88,11 @@ function abortError(message: string): Error {
 function appendBounded(current: string, chunk: string): string {
   if (current.length >= STDERR_LIMIT) return current;
   return (current + chunk).slice(0, STDERR_LIMIT);
+}
+
+function streamTimeoutMs(env: StringEnv): number {
+  const configured = Number(env.CURSOR_PI_STREAM_TIMEOUT_MS);
+  return Number.isSafeInteger(configured) && configured > 0 ? configured : DEFAULT_STREAM_TIMEOUT_MS;
 }
 
 function terminate(child: ReturnType<typeof spawn>): NodeJS.Timeout | undefined {
@@ -396,6 +402,7 @@ function streamCursorCli(
     let child: ReturnType<typeof spawn> | undefined;
     let completion: Promise<ChildOutcome> | undefined;
     let abortListener: (() => void) | undefined;
+    let deadlineTimer: NodeJS.Timeout | undefined;
     let killTimer: NodeJS.Timeout | undefined;
     let stderr = "";
     let sawResult = false;
@@ -430,6 +437,14 @@ function streamCursorCli(
       completion = childOutcome(child);
       completion.then(() => { if (killTimer) clearTimeout(killTimer); });
 
+      const deadlineMs = streamTimeoutMs(env);
+      deadlineTimer = setTimeout(() => {
+        if (child) killTimer ??= terminate(child);
+        if (options?.signal?.aborted) finish("aborted", "Request aborted");
+        else finish("error", `cursor-agent stream timed out after ${deadlineMs}ms`);
+      }, deadlineMs);
+      deadlineTimer.unref();
+
       abortListener = () => { if (child) killTimer ??= terminate(child); };
       options?.signal?.addEventListener("abort", abortListener, { once: true });
       if (options?.signal?.aborted) abortListener();
@@ -439,13 +454,16 @@ function streamCursorCli(
 
       await waitForSpawn(child);
       await options?.onResponse?.({ status: 0, headers: { "x-pi-transport": "subprocess" } }, model);
+      if (finished) return;
       await writePrompt(child, payload.prompt);
+      if (finished) return;
       if (options?.signal?.aborted) throw abortError("Request aborted");
 
       started = true;
       stream.push({ type: "start", partial: output });
 
       for await (const line of boundedStreamLines(child.stdout!)) {
+        if (finished) break;
         const trimmed = line.trim();
         if (!trimmed) continue;
 
@@ -460,7 +478,7 @@ function streamCursorCli(
         }
         const event = parsed as CursorEvent;
         await options?.onProviderStreamEvent?.(event, model);
-        if (options?.signal?.aborted) break;
+        if (finished || options?.signal?.aborted) break;
 
         if (event.type === "thinking") {
           if (event.subtype === "delta") {
@@ -537,6 +555,7 @@ function streamCursorCli(
       const aborted = options?.signal?.aborted || (error instanceof Error && error.name === "AbortError");
       finish(aborted ? "aborted" : "error", aborted ? "Request aborted" : messageOf(error));
     } finally {
+      if (deadlineTimer) clearTimeout(deadlineTimer);
       if (abortListener) options?.signal?.removeEventListener("abort", abortListener);
     }
   })();

@@ -49,6 +49,7 @@ The catalog is discovered by launching the local `cursor-agent --list-models` su
 | --- | --- |
 | `CURSOR_AGENT_PATH` | Cursor CLI executable. Defaults to `cursor-agent`. Paths containing spaces are supported. |
 | `CURSOR_API_KEY` | Optional Cursor API key inherited by the child process. Omit it to use the CLI's existing login. |
+| `CURSOR_PI_STREAM_TIMEOUT_MS` | Maximum duration of a streaming turn in milliseconds. Positive integers are accepted; the default is 600000 (10 minutes). |
 | `CURSOR_PI_NO_FORCE` | Set to `1` to omit the default `--force`. In non-interactive `--print` mode, approval-gated shell calls are then rejected rather than prompting. |
 
 Provider-scoped request environment values override the ambient process environment.

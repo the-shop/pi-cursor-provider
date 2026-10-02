@@ -68,7 +68,15 @@ if (process.argv.includes("--list-models")) {
   });
 
   const scenario = process.env.CURSOR_PI_STUB_SCENARIO ?? "happy";
-  if (scenario === "empty") {
+  if (scenario === "hang") {
+    process.on("SIGTERM", () => {
+      if (process.env.CURSOR_PI_STUB_SIGNAL_CAPTURE) {
+        appendFileSync(process.env.CURSOR_PI_STUB_SIGNAL_CAPTURE, "stream:SIGTERM\n");
+      }
+      process.exit(143);
+    });
+    setInterval(() => {}, 1_000);
+  } else if (scenario === "empty") {
     line({ type: "result", usage: { inputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } });
   } else if (scenario === "snake-usage") {
     line({ type: "assistant", message: { content: [{ type: "text", text: "snake" }] } });
