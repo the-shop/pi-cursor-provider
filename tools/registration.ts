@@ -139,7 +139,7 @@ console.log("=== package surface ===");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as Record<string, any>;
 check("pi-package keyword", packageJson.keywords.includes("pi-package"));
 eq("Pi manifest points to root extension", packageJson.pi, { extensions: ["./index.ts"] });
-eq("Node 22 minimum", packageJson.engines, { node: ">=22" });
+eq("Node strip-types minimum", packageJson.engines, { node: ">=22.6.0" });
 check("no runtime dependencies", packageJson.dependencies === undefined);
 eq("host peers only", Object.keys(packageJson.peerDependencies).sort(), [
   "@earendil-works/pi-ai",

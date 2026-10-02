@@ -17,7 +17,7 @@
     "url": "git+https://github.com/the-shop/pi-cursor-provider.git"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.6.0"
   },
   "scripts": {
     "test": "node tools/secret-scan.mjs && node --experimental-strip-types tools/unit.ts && node --experimental-strip-types --import=./tools/pi-ai-test-loader.mjs tools/registration.ts",
