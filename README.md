@@ -106,13 +106,13 @@ npm run test:e2e         # deterministic cursor-agent stub
 npm run secret-scan
 ```
 
-A real CLI smoke test is explicitly opt-in and may consume quota. The text-only smoke does not need tool execution, so this example disables the provider's default `--force`:
+A real CLI smoke test is explicitly opt-in and consumes quota for two model turns. Its second turn uses the default `--force` to perform one approval-gated shell write in a temporary directory and verifies the completed tool lifecycle:
 
 ```sh
-CURSOR_PI_NO_FORCE=1 CURSOR_PI_E2E_REAL=1 npm run test:e2e:real
+CURSOR_PI_E2E_REAL=1 npm run test:e2e:real
 ```
 
-Omit `CURSOR_PI_NO_FORCE=1` only when intentionally exercising the release-default safety behavior in an appropriate workspace.
+Run it only when intentionally exercising the release-default safety behavior. Do not set `CURSOR_PI_NO_FORCE=1` for this check.
 
 ## License
 

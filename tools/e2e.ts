@@ -157,6 +157,7 @@ try {
   const happyCapture = join(root, "happy.json");
   const hookOrder: string[] = [];
   const rawTypes: string[] = [];
+  const rawToolSubtypes: string[] = [];
   let payloadSeen: { argv: string[]; prompt: string } | undefined;
   let responseSeen: unknown;
   process.env.CURSOR_AGENT_PATH = join(root, "ambient path must lose");
@@ -183,9 +184,10 @@ try {
       responseSeen = response;
     },
     onProviderStreamEvent: async (event: unknown) => {
-      const type = (event as { type: string }).type;
-      hookOrder.push(`event:${type}`);
-      rawTypes.push(type);
+      const raw = event as { type: string; subtype?: unknown };
+      hookOrder.push(`event:${raw.type}`);
+      rawTypes.push(raw.type);
+      if (raw.type === "tool_call" && typeof raw.subtype === "string") rawToolSubtypes.push(raw.subtype);
       await new Promise((resolve) => setTimeout(resolve, 1));
     },
   });
@@ -200,7 +202,16 @@ try {
   eq("split UTF-8 text preserved", happy.filter((event) => event.type === "text_delta").map((event) => event.delta).join(""), "hello 🌍");
   check("Cursor-internal tool args are not transcript text", !JSON.stringify(happy).includes("internal-only"));
   check("Cursor tools do not become Pi tool calls", !happy.some((event) => String(event.type).startsWith("toolcall")));
-  eq("raw event hook sees every parsed event", rawTypes, ["thinking", "thinking", "assistant", "tool_call", "telemetry", "result"]);
+  eq("raw event hook sees every parsed event", rawTypes, [
+    "thinking",
+    "thinking",
+    "assistant",
+    "tool_call",
+    "tool_call",
+    "telemetry",
+    "result",
+  ]);
+  eq("raw tool hook sees started and completed lifecycle", rawToolSubtypes, ["started", "completed"]);
   eq("hook order starts payload then response", hookOrder.slice(0, 2), ["payload", "response"]);
   check("provider events follow response hook", hookOrder.slice(2).every((entry) => entry.startsWith("event:")));
   eq("synthetic subprocess response", responseSeen, { status: 0, headers: { "x-pi-transport": "subprocess" } });

@@ -119,6 +119,11 @@ if (process.argv.includes("--list-models")) {
       subtype: "started",
       tool_call: { shellToolCall: { args: { command: "internal-only" } } },
     });
+    line({
+      type: "tool_call",
+      subtype: "completed",
+      tool_call: { shellToolCall: { args: { command: "internal-only" }, result: { exitCode: 0 } } },
+    });
     line({ type: "telemetry", value: 1 });
     line({
       type: "result",
