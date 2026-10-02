@@ -266,6 +266,7 @@ try {
     ["nonzero", "cursor-agent exited with code 7"],
     ["malformed", "malformed stream-json"],
     ["truncated", "malformed stream-json"],
+    ["oversized-line", "stream-json event exceeded the 1048576-byte limit"],
   ] as const) {
     const events = await collect(config, model, {
       env: {
@@ -280,6 +281,9 @@ try {
     if (scenario === "partial-error" || scenario === "nonzero" || scenario === "malformed") {
       check(`${scenario}: partial text retained`, events.some((event) => event.type === "text_delta"));
       eq(`${scenario}: text block balanced`, events.filter((event) => event.type === "text_start").length, events.filter((event) => event.type === "text_end").length);
+    }
+    if (scenario === "oversized-line") {
+      check("oversized-line: event is rejected before normalization", !events.some((event) => event.type === "text_delta"));
     }
   }
 

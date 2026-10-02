@@ -9,7 +9,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+import type { Readable } from "node:stream";
 import type {
   Api,
   AssistantMessage,
@@ -42,6 +42,8 @@ const DEFAULT_AGENT_PATH = "cursor-agent";
 const DISCOVERY_TIMEOUT_MS = 20_000;
 const KILL_GRACE_MS = 1_000;
 const STDERR_LIMIT = 8_192;
+const DISCOVERY_STDOUT_LIMIT_BYTES = 1_048_576;
+const STREAM_EVENT_LIMIT_BYTES = 1_048_576;
 
 // The legacy registration contract requires an API-key value even though the
 // Cursor CLI owns ambient login. This non-secret sentinel is never sent to it.
@@ -97,12 +99,40 @@ function terminate(child: ReturnType<typeof spawn>): NodeJS.Timeout | undefined 
   return timer;
 }
 
+async function* boundedStreamLines(input: Readable): AsyncGenerator<string> {
+  const lineBuffer = Buffer.allocUnsafe(STREAM_EVENT_LIMIT_BYTES);
+  let lineLength = 0;
+
+  for await (const value of input) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    let start = 0;
+    while (start < chunk.length) {
+      const newline = chunk.indexOf(0x0a, start);
+      const end = newline < 0 ? chunk.length : newline;
+      const segmentLength = end - start;
+      if (lineLength + segmentLength > STREAM_EVENT_LIMIT_BYTES) {
+        throw new Error(`cursor-agent stream-json event exceeded the ${STREAM_EVENT_LIMIT_BYTES}-byte limit`);
+      }
+      chunk.copy(lineBuffer, lineLength, start, end);
+      lineLength += segmentLength;
+
+      if (newline < 0) break;
+      yield lineBuffer.toString("utf8", 0, lineLength);
+      lineLength = 0;
+      start = newline + 1;
+    }
+  }
+
+  if (lineLength > 0) yield lineBuffer.toString("utf8", 0, lineLength);
+}
+
 function discoverModels(agentPath: string, env: StringEnv, signal: AbortSignal): Promise<RawModel[]> {
   if (signal.aborted) return Promise.reject(abortError("Cursor model discovery aborted"));
 
   return new Promise((resolve, reject) => {
     let settled = false;
     let stdout = "";
+    let stdoutBytes = 0;
     let stderr = "";
     let killTimer: NodeJS.Timeout | undefined;
     const child = spawn(agentPath, ["--list-models"], {
@@ -112,7 +142,19 @@ function discoverModels(agentPath: string, env: StringEnv, signal: AbortSignal):
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => { stdout += chunk; });
+    child.stdout?.on("data", (chunk: string) => {
+      if (settled) return;
+      stdoutBytes += Buffer.byteLength(chunk);
+      if (stdoutBytes > DISCOVERY_STDOUT_LIMIT_BYTES) {
+        killTimer ??= terminate(child);
+        settle(
+          reject,
+          new Error(`cursor-agent --list-models exceeded the ${DISCOVERY_STDOUT_LIMIT_BYTES}-byte stdout limit`),
+        );
+        return;
+      }
+      stdout += chunk;
+    });
     child.stderr?.on("data", (chunk: string) => { stderr = appendBounded(stderr, chunk); });
 
     const timeout = setTimeout(() => {
@@ -403,8 +445,7 @@ function streamCursorCli(
       started = true;
       stream.push({ type: "start", partial: output });
 
-      const lines = createInterface({ input: child.stdout!, crlfDelay: Infinity });
-      for await (const line of lines) {
+      for await (const line of boundedStreamLines(child.stdout!)) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 

@@ -36,6 +36,8 @@ if (process.argv.includes("--list-models")) {
       process.exit(143);
     });
     setInterval(() => {}, 1_000);
+  } else if (process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO === "oversized") {
+    process.stdout.write("x".repeat(1_100_000));
   } else if (process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO === "error") {
     process.stderr.write("stub discovery failed\n");
     process.exitCode = 9;
@@ -88,6 +90,9 @@ if (process.argv.includes("--list-models")) {
     process.stdout.write("{not json}\n");
   } else if (scenario === "truncated") {
     process.stdout.write('{"type":"assistant"');
+  } else if (scenario === "oversized-line") {
+    line({ type: "assistant", message: { content: [{ type: "text", text: "x".repeat(1_100_000) }] } });
+    line({ type: "result", usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } });
   } else if (scenario === "abort") {
     line({ type: "assistant", message: { content: [{ type: "text", text: "before abort" }] } });
     process.on("SIGTERM", () => {

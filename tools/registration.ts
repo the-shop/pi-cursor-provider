@@ -114,6 +114,19 @@ try {
   check("missing CLI is surfaced even when network is disallowed", /ENOENT|spawn/.test(missingError), missingError);
 
   process.env.CURSOR_AGENT_PATH = stubPath;
+  process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO = "oversized";
+  let oversizedError = "";
+  try {
+    await config.refreshModels(refreshContext as never);
+  } catch (error) {
+    oversizedError = error instanceof Error ? error.message : String(error);
+  }
+  eq(
+    "oversized discovery output hits the fixed stdout cap",
+    oversizedError,
+    "cursor-agent --list-models exceeded the 1048576-byte stdout limit",
+  );
+
   process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO = "hang";
   process.env.CURSOR_PI_STUB_SIGNAL_CAPTURE = signalCapture;
   const aborted = new AbortController();
@@ -132,7 +145,7 @@ try {
   delete process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE;
   delete process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO;
   delete process.env.CURSOR_PI_STUB_SIGNAL_CAPTURE;
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
 }
 
 console.log("=== package surface ===");
