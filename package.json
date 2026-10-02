@@ -1,0 +1,24 @@
+{
+  "name": "pi-cursor-provider",
+  "version": "0.1.0",
+  "description": "Cursor subscription models for the pi coding agent: routes turns through the cursor-agent CLI.",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "cursor", "cursor-agent", "provider"],
+  "license": "MIT",
+  "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/the-shop/pi-cursor-provider.git" },
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --experimental-strip-types tools/unit.ts",
+    "test:e2e": "node --experimental-strip-types tools/e2e.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": { "optional": true },
+    "@earendil-works/pi-coding-agent": { "optional": true }
+  },
+  "pi": { "extensions": ["./index.ts"] }
+}
