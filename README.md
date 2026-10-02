@@ -96,6 +96,37 @@ The status and header above are synthetic subprocess metadata; there is no HTTP 
 
 Input is text-only and subscription token costs are reported as zero. These values describe Pi catalog metadata; they are not Cursor billing data or service-level guarantees.
 
+## How this compares
+
+Two ways to reach Cursor from pi exist, and they trade different risks.
+
+| | This package (`cursor-agent` transport) | OAuth/proxy extensions |
+| --- | --- | --- |
+| Transport | official `cursor-agent` CLI, `stream-json` events | reverse-engineered Cursor gRPC behind a local OpenAI-compatible proxy |
+| Runtime dependencies | none | protobuf runtime plus a local HTTP/2 bridge process |
+| Setup | install the CLI once, then `cursor-agent login` | sign in from inside pi |
+| Tool execution | Cursor runs its own tools; Pi observes the events | Pi's tools are bridged into Cursor, so Pi owns the tool calls |
+| Breakage surface | the CLI's event schema | Cursor's private API and auth flow |
+
+Where this package's value is:
+
+- It rides the public CLI surface, so it does not depend on reverse-engineered
+  API shapes or an undocumented auth flow.
+- No runtime dependencies, no local server, and no sidecar processes: one
+  extension entry plus its logic module.
+- Stream handling is regression-covered without quota: unit, registration, and
+  deterministic stub checks, plus an opt-in real smoke test.
+- Contract hygiene: a streaming deadline, bounded CLI output, cancellation
+  mapped to `aborted`, request instrumentation hooks, and documented metadata
+  estimates instead of invented precision.
+- Honest defaults: `--force` is on by default so tools actually run in print
+  mode, with `CURSOR_PI_NO_FORCE=1` as the documented opt-out.
+
+When this is not the right choice: if you need Pi to own and approve tool calls
+(MCP bridging), or you cannot install `cursor-agent`, use an OAuth/proxy
+extension instead. Input here is text-only, and a failed discovery leaves the
+model list empty rather than falling back to a stale catalog.
+
 ## Tests
 
 No dependency installation, network access, Cursor login, or quota is needed for the default checks:
