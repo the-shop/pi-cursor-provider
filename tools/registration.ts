@@ -151,7 +151,9 @@ for (const script of ["test", "test:e2e", "test:e2e:real", "secret-scan"]) {
 check("no install step in tests", !JSON.stringify(packageJson.scripts).includes("npm install"));
 
 const source = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
-for (const removed of ["--force", "--trust", "--api-key", "CURSOR_PI_DEBUG", "STATIC_MODELS", "registerCommand("]) {
+check("default force flag is present", source.includes('"--force"'));
+check("force opt-out is present", source.includes('env.CURSOR_PI_NO_FORCE === "1"'));
+for (const removed of ["--yolo", "--trust", "--api-key", "CURSOR_PI_DEBUG", "STATIC_MODELS", "registerCommand("]) {
   check(`removed production surface: ${removed}`, !source.includes(removed));
 }
 check("source is strip-types compatible", !/constructor\s*\([^)]*\b(private|public|protected|readonly)\s+\w+\s*:/s.test(source));

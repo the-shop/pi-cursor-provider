@@ -369,7 +369,15 @@ function streamCursorCli(
       const level = options?.reasoning as ModelThinkingLevel | undefined;
       const cliModel = family ? resolveVariant(family, level) : model.id;
       const initialPayload: CursorPayload = {
-        argv: ["--print", "--output-format", "stream-json", "--stream-partial-output", "--model", cliModel],
+        argv: [
+          "--print",
+          ...(env.CURSOR_PI_NO_FORCE === "1" ? [] : ["--force"]),
+          "--output-format",
+          "stream-json",
+          "--stream-partial-output",
+          "--model",
+          cliModel,
+        ],
         prompt: serializeTranscript(context.messages, getCurrentSystemPrompt(context.messages)),
       };
       const replacement = await options?.onPayload?.(initialPayload, model);
@@ -435,8 +443,8 @@ function streamCursorCli(
           continue;
         }
 
-        // Cursor tool events describe work already performed by the child. They
-        // stay observable through onProviderStreamEvent but are not Pi tool calls.
+        // Cursor tool events describe work managed by the child. They stay
+        // observable through onProviderStreamEvent but are not Pi tool calls.
         if (event.type === "tool_call") continue;
 
         if (event.type === "result") {

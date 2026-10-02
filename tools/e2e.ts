@@ -115,6 +115,7 @@ try {
   process.env.CURSOR_AGENT_PATH = stubPath;
   process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE = discoveryCapture;
   delete process.env.CURSOR_API_KEY;
+  delete process.env.CURSOR_PI_NO_FORCE;
 
   const providers = new Map<string, ProviderConfig>();
   factory({ registerProvider: (name: string, config: ProviderConfig) => providers.set(name, config) } as never);
@@ -201,10 +202,16 @@ try {
     prompt: string;
     env: { apiKey: string | null; probe: string | null };
   };
-  for (const required of ["--print", "--output-format", "stream-json", "--stream-partial-output", "--model"]) {
-    check(`argv includes ${required}`, captured.argv.includes(required));
-  }
-  for (const removed of ["--force", "--trust", "--workspace", "--api-key"]) {
+  eq("default argv enables non-interactive tool execution", captured.argv, [
+    "--print",
+    "--force",
+    "--output-format",
+    "stream-json",
+    "--stream-partial-output",
+    "--model",
+    "claude-sonnet-5-thinking-xhigh",
+  ]);
+  for (const removed of ["--yolo", "--trust", "--workspace", "--api-key"]) {
     check(`argv omits ${removed}`, !captured.argv.includes(removed));
   }
   eq("payload replacement controls exact model", captured.argv[captured.argv.indexOf("--model") + 1], "claude-sonnet-5-thinking-xhigh");
@@ -223,13 +230,26 @@ try {
   console.log("=== empty, usage, and payload fallback ===");
   const emptyCapture = join(root, "empty.json");
   const empty = await collect(config, model, {
-    env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: emptyCapture, CURSOR_PI_STUB_SCENARIO: "empty" },
+    env: {
+      CURSOR_AGENT_PATH: stubPath,
+      CURSOR_PI_NO_FORCE: "1",
+      CURSOR_PI_STUB_CAPTURE: emptyCapture,
+      CURSOR_PI_STUB_SCENARIO: "empty",
+    },
     apiKey: "test-key",
     onPayload: () => ({ argv: "invalid", prompt: 42 }),
   });
   assertSingleTerminal("empty", empty, "done");
   eq("empty success has no content blocks", empty.at(-1)?.message?.content, []);
   const emptyCaptured = JSON.parse(readFileSync(emptyCapture, "utf8")) as { argv: string[]; env: { apiKey: string | null } };
+  eq("CURSOR_PI_NO_FORCE=1 omits the default force flag", emptyCaptured.argv, [
+    "--print",
+    "--output-format",
+    "stream-json",
+    "--stream-partial-output",
+    "--model",
+    "claude-sonnet-5-thinking-high",
+  ]);
   check("invalid payload replacement is ignored", emptyCaptured.argv.includes("--stream-partial-output"));
   eq("request API key uses environment only", emptyCaptured.env.apiKey, "test-key");
   check("request API key never enters argv", !emptyCaptured.argv.includes("test-key"));
@@ -330,6 +350,7 @@ try {
 } finally {
   delete process.env.CURSOR_AGENT_PATH;
   delete process.env.CURSOR_API_KEY;
+  delete process.env.CURSOR_PI_NO_FORCE;
   delete process.env.CURSOR_PI_ENV_PROBE;
   delete process.env.CURSOR_PI_STUB_DISCOVERY_CAPTURE;
   rmSync(root, { recursive: true, force: true });
