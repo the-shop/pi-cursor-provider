@@ -506,7 +506,6 @@ export default function cursorProvider(pi: ExtensionAPI): void {
     api: API_ID,
     models,
     refreshModels: async (context) => {
-      if (!context.allowNetwork) return models;
       const env: StringEnv = { ...process.env };
       const credentialKey = context.credential?.type === "api_key" ? context.credential.key : undefined;
       if (credentialKey && credentialKey !== LEGACY_AUTH_SENTINEL) env.CURSOR_API_KEY = credentialKey;

@@ -62,18 +62,19 @@ try {
 
   const controller = new AbortController();
   const refreshContext = {
-    allowNetwork: true,
+    allowNetwork: false,
     signal: controller.signal,
     credential: undefined,
     publish: async () => true,
   };
   const models = await config.refreshModels(refreshContext as never);
 
-  console.log("=== live catalog ===");
-  check("stub discovery returns models", models.length >= 5, `${models.length}`);
+  console.log("=== initial local catalog ===");
+  check("cold refresh discovers models when network is disallowed", models.length >= 5, `${models.length}`);
   eq("family ids are unique", new Set(models.map((model) => model.id)).size, models.length);
   const claude = models.find((model) => model.id === "claude-sonnet-5-thinking")!;
   check("effort variants collapse into one family", Boolean(claude));
+  eq("thinking family is marked as reasoning", claude.reasoning, true);
   eq("exact thinking map", claude.thinkingLevelMap, {
     off: null,
     minimal: null,
@@ -84,6 +85,7 @@ try {
     max: null,
   });
   const auto = models.find((model) => model.id === "auto")!;
+  eq("plain family is not marked as reasoning", auto.reasoning, false);
   check("plain family does not publish a thinking map", auto.thinkingLevelMap === undefined);
   check("all models are text-only", models.every((model) => JSON.stringify(model.input) === '["text"]'));
   check("all model names retain Cursor label", models.every((model) => String(model.name).endsWith(" (Cursor)")));
@@ -101,9 +103,6 @@ try {
   eq("optional API key stays out of discovery argv", keyedDiscovery.argv, ["--list-models"]);
   delete process.env.CURSOR_API_KEY;
 
-  const offline = await config.refreshModels({ ...refreshContext, allowNetwork: false } as never);
-  eq("offline refresh retains live catalog", offline.map((model) => model.id), models.map((model) => model.id));
-
   console.log("=== refresh failure and cancellation ===");
   process.env.CURSOR_AGENT_PATH = join(root, "missing cursor agent");
   let missingError = "";
@@ -112,9 +111,7 @@ try {
   } catch (error) {
     missingError = error instanceof Error ? error.message : String(error);
   }
-  check("missing CLI is surfaced", /ENOENT|spawn/.test(missingError), missingError);
-  const afterFailure = await config.refreshModels({ ...refreshContext, allowNetwork: false } as never);
-  eq("failed refresh does not replace catalog", afterFailure.map((model) => model.id), models.map((model) => model.id));
+  check("missing CLI is surfaced even when network is disallowed", /ENOENT|spawn/.test(missingError), missingError);
 
   process.env.CURSOR_AGENT_PATH = stubPath;
   process.env.CURSOR_PI_STUB_DISCOVERY_SCENARIO = "hang";
