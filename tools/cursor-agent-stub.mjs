@@ -78,6 +78,24 @@ if (process.argv.includes("--list-models")) {
     setInterval(() => {}, 1_000);
   } else if (scenario === "empty") {
     line({ type: "result", usage: { inputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } });
+  } else if (scenario === "replay") {
+    // cursor-agent 2026.10 with --stream-partial-output: each segment ends with a
+    // repeat of its whole text, before a tool call (with timestamp_ms) and before
+    // the result (without it).
+    line({ type: "assistant", timestamp_ms: 1, message: { content: [{ type: "text", text: "BEF" }] } });
+    line({ type: "assistant", timestamp_ms: 2, message: { content: [{ type: "text", text: "ORE" }] } });
+    line({ type: "telemetry", value: 1 });
+    line({ type: "assistant", timestamp_ms: 3, message: { content: [{ type: "text", text: "BEFORE" }] } });
+    line({ type: "tool_call", subtype: "started", tool_call: { shellToolCall: { args: { command: "x" } } } });
+    line({ type: "tool_call", subtype: "completed", tool_call: { shellToolCall: { args: { command: "x" }, result: { exitCode: 0 } } } });
+    line({ type: "assistant", timestamp_ms: 4, message: { content: [{ type: "text", text: "AFTER" }] } });
+    line({ type: "assistant", message: { content: [{ type: "text", text: "AFTER" }] } });
+    line({ type: "result", result: "BEFOREAFTER", usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } });
+  } else if (scenario === "echo") {
+    // Real deltas that repeat the segment so far must survive.
+    // The last delta repeats the whole segment; the result text shows it is real.
+    for (const text of ["ha", "ha", "haha", "!", "hahahaha!"]) line({ type: "assistant", message: { content: [{ type: "text", text }] } });
+    line({ type: "result", result: "hahahaha!hahahaha!", usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } });
   } else if (scenario === "snake-usage") {
     line({ type: "assistant", message: { content: [{ type: "text", text: "snake" }] } });
     line({ type: "result", usage: { input_tokens: 5, output_tokens: 4, cache_read_tokens: 3, cache_write_tokens: 2 } });

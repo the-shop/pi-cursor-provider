@@ -14,7 +14,7 @@ if (process.env.CURSOR_PI_E2E_REAL !== "1") {
 }
 
 const providers = new Map<string, Record<string, any>>();
-factory({ registerProvider: (name: string, config: Record<string, any>) => providers.set(name, config) } as never);
+await factory({ registerProvider: (name: string, config: Record<string, any>) => providers.set(name, config) } as never);
 const config = providers.get("cursor");
 if (!config) {
   console.error("e2e-real: cursor provider was not registered");

@@ -284,6 +284,19 @@ try {
   eq("request API key uses environment only", emptyCaptured.env.apiKey, "test-key");
   check("request API key never enters argv", !emptyCaptured.argv.includes("test-key"));
 
+  const text = (events: Array<Record<string, any>>) => events.filter((event) => event.type === "text_delta").map((event) => event.delta).join("");
+  const replay = await collect(config, model, {
+    env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: join(root, "replay.json"), CURSOR_PI_STUB_SCENARIO: "replay" },
+  });
+  assertSingleTerminal("segment replay", replay, "done");
+  eq("segment replays are not streamed twice", text(replay), "BEFOREAFTER");
+  eq("segment replays are not stored twice", replay.at(-1)?.message?.content, [{ type: "text", text: "BEFOREAFTER" }]);
+  const echo = await collect(config, model, {
+    env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: join(root, "echo.json"), CURSOR_PI_STUB_SCENARIO: "echo" },
+  });
+  assertSingleTerminal("echo deltas", echo, "done");
+  eq("real deltas equal to the segment so far are kept", text(echo), "hahahaha!hahahaha!");
+
   const snake = await collect(config, model, {
     env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: join(root, "snake.json"), CURSOR_PI_STUB_SCENARIO: "snake-usage" },
   });

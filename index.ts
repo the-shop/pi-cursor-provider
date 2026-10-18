@@ -372,6 +372,22 @@ function streamCursorCli(
     block.text += delta;
     stream.push({ type: "text_delta", contentIndex: textIndex, delta, partial: output });
   };
+  // With --stream-partial-output, cursor-agent ends each text segment (before a
+  // tool call or the result) with one more assistant event that repeats the
+  // whole segment. Hold an event equal to the segment so far until the next
+  // event shows whether it was that replay or a real delta.
+  let segment = "";
+  let held: string | null = null;
+  const flushHeld = () => {
+    if (held === null) return;
+    const text = held;
+    held = null;
+    segment += text;
+    pushText(text);
+  };
+  const emittedText = () => output.content
+    .map((block) => (block.type === "text" ? (block as TextContent).text : ""))
+    .join("");
   const pushThinking = (delta: string) => {
     if (!delta) return;
     closeText();
@@ -480,6 +496,14 @@ function streamCursorCli(
         await options?.onProviderStreamEvent?.(event, model);
         if (finished || options?.signal?.aborted) break;
 
+        if (held !== null) {
+          const real = event.type === "assistant"
+            || (event.type === "result" && typeof event.result === "string" && emittedText() + held === event.result);
+          if (real) flushHeld();
+          else if (event.type === "thinking" || event.type === "tool_call" || event.type === "result") held = null;
+        }
+        if (event.type === "thinking" || event.type === "tool_call" || event.type === "result") segment = "";
+
         if (event.type === "thinking") {
           if (event.subtype === "delta") {
             if (typeof event.text !== "string") throw new Error("Cursor thinking delta is missing text");
@@ -494,11 +518,18 @@ function streamCursorCli(
           if (!isRecord(event.message) || !Array.isArray(event.message.content)) {
             throw new Error("Cursor assistant event has invalid content");
           }
+          let text = "";
           for (const block of event.message.content) {
             if (!isRecord(block) || block.type !== "text") continue;
             if (typeof block.text !== "string") throw new Error("Cursor assistant text block is invalid");
-            pushText(block.text);
+            text += block.text;
           }
+          if (segment && text === segment) {
+            held = text;
+            continue;
+          }
+          segment += text;
+          pushText(text);
           continue;
         }
 
