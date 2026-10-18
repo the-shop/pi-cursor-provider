@@ -31,7 +31,7 @@ Use a disposable workspace and a Pi configuration where no other copy of the pro
 2. Run `pi --list-models` from a cold Pi start and confirm that it lists non-empty `cursor/<family>` entries. This verifies local discovery during the initial `allowNetwork: false` refresh.
 3. Start Pi, select a listed Cursor model, and complete a text turn.
 4. With the default configuration, request a harmless shell edit inside the disposable workspace and confirm that the tool call completes when Cursor's deny rules allow it.
-5. Start Pi with `CURSOR_PI_NO_FORCE=1`, request an approval-gated shell action, and confirm that it is rejected rather than waiting for a prompt. In a workspace `cursor-agent` has not been told to trust, the rejection is its workspace-trust message; that still counts.
+5. Start Pi with `CURSOR_PI_NO_FORCE=1`, request an approval-gated shell action, and confirm that it is rejected rather than waiting for a prompt. First trust the disposable workspace by running `cursor-agent` there interactively once; otherwise the rejection comes from the workspace-trust check and the approval gate is never exercised.
 6. Confirm that each reply appears once, including text before and after a tool call.
 
 Do not continue if discovery, streaming, default tool execution, or the opt-out behavior differs.
