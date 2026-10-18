@@ -91,6 +91,21 @@ if (process.argv.includes("--list-models")) {
     line({ type: "assistant", timestamp_ms: 4, message: { content: [{ type: "text", text: "AFTER" }] } });
     line({ type: "assistant", message: { content: [{ type: "text", text: "AFTER" }] } });
     line({ type: "result", result: "BEFOREAFTER", usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } });
+  } else if (scenario === "replay-thinking") {
+    // A replay spanning thinking, then an unknown event, an empty event, and a replay
+    // that differs only in surrounding whitespace.
+    line({ type: "assistant", message: { content: [{ type: "text", text: "A" }] } });
+    line({ type: "thinking", subtype: "delta", text: "hmm" });
+    line({ type: "thinking", subtype: "completed" });
+    line({ type: "assistant", message: { content: [{ type: "text", text: "B" }] } });
+    line({ type: "assistant", message: { content: [{ type: "text", text: "AB" }] } });
+    line({ type: "telemetry", value: 1 });
+    line({ type: "assistant", message: { content: [] } });
+    line({ type: "tool_call", subtype: "started", tool_call: { shellToolCall: { args: { command: "x" } } } });
+    line({ type: "tool_call", subtype: "completed", tool_call: { shellToolCall: { args: { command: "x" }, result: { exitCode: 0 } } } });
+    line({ type: "assistant", message: { content: [{ type: "text", text: "D \n" }] } });
+    line({ type: "assistant", message: { content: [{ type: "text", text: "D" }] } });
+    line({ type: "result", result: "ABD \n", usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } });
   } else if (scenario === "echo") {
     // Real deltas that repeat the segment so far must survive.
     // The last delta repeats the whole segment; the result text shows it is real.

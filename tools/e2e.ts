@@ -291,6 +291,11 @@ try {
   assertSingleTerminal("segment replay", replay, "done");
   eq("segment replays are not streamed twice", text(replay), "BEFOREAFTER");
   eq("segment replays are not stored twice", replay.at(-1)?.message?.content, [{ type: "text", text: "BEFOREAFTER" }]);
+  const thinkingReplay = await collect(config, model, {
+    env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: join(root, "replay-thinking.json"), CURSOR_PI_STUB_SCENARIO: "replay-thinking" },
+  });
+  assertSingleTerminal("replay across thinking", thinkingReplay, "done");
+  eq("replays across thinking or after other events are not streamed twice", text(thinkingReplay), "ABD \n");
   const echo = await collect(config, model, {
     env: { CURSOR_AGENT_PATH: stubPath, CURSOR_PI_STUB_CAPTURE: join(root, "echo.json"), CURSOR_PI_STUB_SCENARIO: "echo" },
   });

@@ -374,15 +374,18 @@ function streamCursorCli(
   };
   // With --stream-partial-output, cursor-agent ends each text segment (before a
   // tool call or the result) with one more assistant event that repeats the
-  // whole segment. Hold an event equal to the segment so far until the next
-  // event shows whether it was that replay or a real delta.
-  let segment = "";
+  // whole segment. Hold an event equal to the text since the last tool call, or
+  // since the last thinking, until the next event shows whether it was that
+  // replay or a real delta: only further text or a matching result keeps it.
+  let sinceTool = "";
+  let sinceThinking = "";
   let held: string | null = null;
   const flushHeld = () => {
     if (held === null) return;
     const text = held;
     held = null;
-    segment += text;
+    sinceTool += text;
+    sinceThinking += text;
     pushText(text);
   };
   const emittedText = () => output.content
@@ -496,13 +499,15 @@ function streamCursorCli(
         await options?.onProviderStreamEvent?.(event, model);
         if (finished || options?.signal?.aborted) break;
 
-        if (held !== null) {
-          const real = event.type === "assistant"
-            || (event.type === "result" && typeof event.result === "string" && emittedText() + held === event.result);
-          if (real) flushHeld();
-          else if (event.type === "thinking" || event.type === "tool_call" || event.type === "result") held = null;
+        if (held !== null && event.type !== "assistant") {
+          if (event.type === "result" && typeof event.result === "string" && emittedText() + held === event.result) flushHeld();
+          else {
+            held = null;
+            sinceTool = sinceThinking = "";
+          }
         }
-        if (event.type === "thinking" || event.type === "tool_call" || event.type === "result") segment = "";
+        if (event.type === "thinking") sinceThinking = "";
+        if (event.type === "tool_call" || event.type === "result") sinceTool = sinceThinking = "";
 
         if (event.type === "thinking") {
           if (event.subtype === "delta") {
@@ -524,11 +529,15 @@ function streamCursorCli(
             if (typeof block.text !== "string") throw new Error("Cursor assistant text block is invalid");
             text += block.text;
           }
-          if (segment && text === segment) {
+          if (!text) continue;
+          flushHeld();
+          const replays = (segment: string) => segment.trim() !== "" && text.trim() === segment.trim();
+          if (replays(sinceTool) || replays(sinceThinking)) {
             held = text;
             continue;
           }
-          segment += text;
+          sinceTool += text;
+          sinceThinking += text;
           pushText(text);
           continue;
         }
