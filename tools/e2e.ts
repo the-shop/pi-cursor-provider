@@ -428,7 +428,7 @@ try {
   eq("mid-abort stop reason", aborted.at(-1)?.error?.stopReason, "aborted");
   eq("mid-abort message", aborted.at(-1)?.error?.errorMessage, "Request aborted");
   check("mid-abort closes partial block", aborted.filter((event) => event.type === "text_start").length === aborted.filter((event) => event.type === "text_end").length);
-  check("abort reaches child", existsSync(signalCapture) && readFileSync(signalCapture, "utf8").includes("stream:SIGTERM"));
+  check("abort reaches child", await fileEventuallyContains(signalCapture, "stream:SIGTERM"));
 } finally {
   delete process.env.CURSOR_AGENT_PATH;
   delete process.env.CURSOR_API_KEY;
