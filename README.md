@@ -50,7 +50,7 @@ The catalog is discovered by launching the local `cursor-agent --list-models` su
 | `CURSOR_AGENT_PATH` | Cursor CLI executable. Defaults to `cursor-agent`. Paths containing spaces are supported. |
 | `CURSOR_API_KEY` | Optional Cursor API key inherited by the child process. Omit it to use the CLI's existing login. |
 | `CURSOR_PI_STREAM_TIMEOUT_MS` | Maximum duration of a streaming turn in milliseconds. Positive integers are accepted; the default is 600000 (10 minutes). |
-| `CURSOR_PI_NO_FORCE` | Set to `1` to omit the default `--force`. In non-interactive `--print` mode, approval-gated shell calls are then rejected rather than prompting. |
+| `CURSOR_PI_NO_FORCE` | Set to `1` to omit the default `--force`. In non-interactive `--print` mode, approval-gated shell calls are then rejected rather than prompting. The workspace must already be trusted by `cursor-agent`; otherwise every turn fails with its workspace-trust message. |
 
 Provider-scoped request environment values override the ambient process environment.
 
@@ -58,7 +58,7 @@ Provider-scoped request environment values override the ambient process environm
 
 By default, the provider passes `--force`. Cursor runs in non-interactive `--print` mode, where approval prompts cannot be answered; without `--force`, shell tool calls that require approval are rejected. `--force` allows those calls without interactive confirmation, so Cursor may execute commands and modify files. It does not override Cursor's own configured deny rules. The child inherits Pi's working directory and environment, so use an appropriate workspace or sandbox.
 
-Set `CURSOR_PI_NO_FORCE=1` to omit `--force`. The provider-generated argv does not add `--yolo` or `--trust`. An `onPayload` hook can replace `argv` and therefore can change these flags.
+Set `CURSOR_PI_NO_FORCE=1` to omit `--force`. The provider-generated argv does not add `--yolo` or `--trust`, so without `--force` `cursor-agent` refuses a workspace it has not been told to trust. To trust one, run `cursor-agent` interactively in it once. An `onPayload` hook can replace `argv` and therefore can change these flags.
 
 Cursor executes its own internal tools. Their stream events are observable through Pi's provider-event hook, but they are not converted into Pi tool calls or persisted as assistant prose. Pi tool declarations are not bridged into Cursor.
 

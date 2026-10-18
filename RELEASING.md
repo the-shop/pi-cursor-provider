@@ -15,13 +15,13 @@ All checks must pass, and the final command must show no unintended files.
 
 ## 2. Run the opt-in real CLI smoke
 
-This uses the local Cursor login and may consume quota:
+This uses the local Cursor login and consumes quota for two model turns:
 
 ```sh
 CURSOR_PI_E2E_REAL=1 npm run test:e2e:real
 ```
 
-The provider enables `--force` by default. Run the smoke in an appropriate workspace, or add `CURSOR_PI_NO_FORCE=1` for this text-only check.
+Its second turn uses the default `--force` to write one probe file in a temporary directory, so run it from an appropriate workspace. Do not set `CURSOR_PI_NO_FORCE=1`: the smoke requires `--force`, and without it `cursor-agent` also refuses a workspace it has not been told to trust.
 
 ## 3. Verify the package in Pi
 
@@ -31,7 +31,8 @@ Use a disposable workspace and a Pi configuration where no other copy of the pro
 2. Run `pi --list-models` from a cold Pi start and confirm that it lists non-empty `cursor/<family>` entries. This verifies local discovery during the initial `allowNetwork: false` refresh.
 3. Start Pi, select a listed Cursor model, and complete a text turn.
 4. With the default configuration, request a harmless shell edit inside the disposable workspace and confirm that the tool call completes when Cursor's deny rules allow it.
-5. Start Pi with `CURSOR_PI_NO_FORCE=1`, request an approval-gated shell action, and confirm that it is rejected rather than waiting for a prompt.
+5. Start Pi with `CURSOR_PI_NO_FORCE=1`, request an approval-gated shell action, and confirm that it is rejected rather than waiting for a prompt. In a workspace `cursor-agent` has not been told to trust, the rejection is its workspace-trust message; that still counts.
+6. Confirm that each reply appears once, including text before and after a tool call.
 
 Do not continue if discovery, streaming, default tool execution, or the opt-out behavior differs.
 
